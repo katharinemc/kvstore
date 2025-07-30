@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 
@@ -21,12 +22,10 @@ type KVResponse struct {
 }
 
 func startKVStore(reqCh <-chan KVRequest) {
-	log.Println("service line 24")
 	store := make(map[string]string)
 	for req := range reqCh {
 		switch req.Method {
 		case "set":
-			log.Println("service, line 28")
 			store[req.Key] = req.Value
 			req.Resp <- KVResponse{Success: true, Value: req.Value}
 		case "get":
@@ -44,9 +43,9 @@ var updatesToStoreChannel = make(chan KVRequest)
 
 func setKey(c *gin.Context) {
 	key := c.Param("key")
+	log.Printf(`set operation in progress for key: %s`, key)
 
 	var body struct {
-		Key   string `json:"key"`
 		Value string `json:"value"`
 	}
 	if err := json.NewDecoder(c.Request.Body).Decode(&body); err != nil {
@@ -62,15 +61,16 @@ func setKey(c *gin.Context) {
 }
 
 func getKey(c *gin.Context) {
-	log.Println("get key operation in progress")
-
 	key := c.Param("key")
+	log.Printf(`get operation in progress for key: %s`, key)
+
 	getResponseChannel := make(chan KVResponse)
 	updatesToStoreChannel <- KVRequest{Method: "get", Key: key, Resp: getResponseChannel} // pushes requests to channel being consumed by startKVStore function
 	resp := <-getResponseChannel
 
 	if !resp.Success {
-		http.Error(c.Writer, "key not found", http.StatusNotFound)
+		errMessage := fmt.Sprintf(`key "%s" not found`, key)
+		http.Error(c.Writer, errMessage, http.StatusNotFound)
 		return
 	}
 
@@ -78,14 +78,19 @@ func getKey(c *gin.Context) {
 }
 
 func deleteKey(c *gin.Context) {
-	log.Println("delete key operation in progress")
-
 	key := c.Param("key")
+	log.Printf(`delete operation in progress for key: %s`, key)
+
 	deletionResponseChannel := make(chan KVResponse)
 	updatesToStoreChannel <- KVRequest{Method: "delete", Key: key, Resp: deletionResponseChannel} // pushes requests to channel being consumed by startKVStore function
 	resp := <-deletionResponseChannel
 
-	c.JSON(http.StatusOK, gin.H{"whatwhat!": resp.Success})
+	if resp.Success == false {
+		http.Error(c.Writer, fmt.Sprintf(`deletion unsuccessful for key: %s`, key), http.StatusNotFound)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"deletion successful for key": key})
 }
 
 func setupRouter() *gin.Engine {

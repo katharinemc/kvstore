@@ -29,7 +29,7 @@ func TestMain(t *testing.T) {
 		},
 		{
 			description:        "success: PATCH creates new key/value when key does not previously exist", //for maximum effect in a production environment, I would refactor so this test could include an initial GET to demonstrate the key does not exist before the operation. For today, observe the data seeded in the test includes no toast.
-			input:              []byte(`{"key": "batman","value": "bruceWayne"}`),
+			input:              []byte(`{"value": "bruceWayne"}`),
 			method:             http.MethodPatch,
 			key:                "batman",
 			expectedStatusCode: http.StatusCreated,
@@ -37,23 +37,33 @@ func TestMain(t *testing.T) {
 		},
 		{
 			description:        "success: PATCH key/value when exists",
-			input:              []byte(`{"key": "robin","value": "dickGrayson"}`),
+			input:              []byte(`{"value": "dickGrayson"}`),
 			method:             http.MethodPatch,
 			key:                "robin",
 			expectedStatusCode: http.StatusCreated,
 			expectedResponse:   "{\"key\":\"robin\",\"value\":\"dickGrayson\"}",
 		},
-
-		// // {description: "success: DELETE key/value"},
+		{
+			description:        "success: DELETE key/value",
+			method:             http.MethodDelete,
+			key:                "robin",
+			expectedStatusCode: http.StatusOK,
+			expectedResponse:   "{\"deletion successful for key\":\"robin\"}",
+		},
 		{
 			description:        "error: GET, key does not exist",
-			input:              []byte(`{}`),
 			expectedStatusCode: http.StatusNotFound,
 			method:             http.MethodGet,
 			key:                "bigfoot",
-			expectedResponse:   "key not found\n",
+			expectedResponse:   "key \"bigfoot\" not found\n",
 		},
-		// {description: "error: DELETE, key does not exist"},
+		{
+			description:        "error: DELETE, key does not exist", // could refactor to make DELETE on non existent resource a success: user wants resource not to exist; it does not ergo, what's the problem? what if user wanted to delete "katharine" which does exist, but supplied "katherine" which does not? I err on side of providing more information in an error.
+			expectedStatusCode: http.StatusNotFound,
+			method:             http.MethodDelete,
+			key:                "nessie",
+			expectedResponse:   "deletion unsuccessful for key: nessie\n",
+		},
 		{
 			description:        "error: PATCH request invalid",
 			input:              []byte(`{"garbageData"}`),
