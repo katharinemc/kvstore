@@ -67,7 +67,7 @@ func (h *KVHandler) getKey(c *gin.Context) {
 	log.Printf(`get operation in progress for key: %s`, key)
 
 	getResponseChannel := make(chan KVResponse)
-	h.storeChannel <- KVRequest{Method: "get", Key: key, Resp: getResponseChannel} // pushes requests to channel being consumed by startKVStore function
+	h.storeChannel <- KVRequest{Method: "get", Key: key, Resp: getResponseChannel}
 	resp := <-getResponseChannel
 
 	if !resp.Success {
@@ -84,7 +84,7 @@ func (h *KVHandler) deleteKey(c *gin.Context) {
 	log.Printf(`delete operation in progress for key: %s`, key)
 
 	deletionResponseChannel := make(chan KVResponse)
-	h.storeChannel <- KVRequest{Method: "delete", Key: key, Resp: deletionResponseChannel} // pushes requests to channel being consumed by startKVStore function
+	h.storeChannel <- KVRequest{Method: "delete", Key: key, Resp: deletionResponseChannel}
 	resp := <-deletionResponseChannel
 
 	if resp.Success == false {

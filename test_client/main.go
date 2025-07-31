@@ -56,8 +56,8 @@ func handler(w http.ResponseWriter, req *http.Request) {
 
 	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated {
 		var successfulResponse struct {
-			Success bool
-			Value   string
+			Key   string `json:"key"`
+			Value string `json:"value"`
 		}
 
 		json.NewDecoder(resp.Body).Decode(&successfulResponse)
@@ -75,7 +75,7 @@ func handler(w http.ResponseWriter, req *http.Request) {
 }
 
 func testDeletionHandler(w http.ResponseWriter, req *http.Request) {
-	if _, err := callKV("PATCH", "/kv/batman", `{"value": "bruce wayne"}`); err != nil {
+	if _, err := callKV("PATCH", "/kv/batman", map[string]string{"value": "bruce wayne"}); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to set key", "details": err.Error()})
 		return
@@ -94,18 +94,18 @@ func testDeletionHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"message": "test overwrite passed"})
+	json.NewEncoder(w).Encode(map[string]string{"message": "test deletion passed"})
 
 }
 
 func testOverWriteHandler(w http.ResponseWriter, req *http.Request) {
 
-	if _, err := callKV("PATCH", "/kv/robin", `{"value": "dick grayson"}`); err != nil {
+	if _, err := callKV("PATCH", "/kv/robin", map[string]string{"value": "dick grayson"}); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to set key", "details": err.Error()})
 		return
 	}
-	if _, err := callKV("PATCH", "/kv/robin", `{"value": "jason todd"}`); err != nil {
+	if _, err := callKV("PATCH", "/kv/robin", map[string]string{"value": "jason todd"}); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to set key", "details": err.Error()})
 		return
@@ -114,7 +114,7 @@ func testOverWriteHandler(w http.ResponseWriter, req *http.Request) {
 	resp, err := callKV("GET", "/kv/robin", nil)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Key still exists after deletion"})
+		json.NewEncoder(w).Encode(map[string]string{"error": "GET failed after overwrite"})
 		return
 	}
 
@@ -143,6 +143,6 @@ func main() {
 	r.HandleFunc("/test_deletion", testDeletionHandler).Methods("GET")
 	r.HandleFunc("/test_overwrite", testOverWriteHandler).Methods("GET")
 
-	log.Println("Test Client listening on :8081")
+	log.Println("Test Client now listening on :8081")
 	log.Fatal(http.ListenAndServe(":8081", r))
 }
