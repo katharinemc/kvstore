@@ -39,76 +39,83 @@ func startKVStore(reqCh <-chan KVRequest) {
 	}
 }
 
-var updatesToStoreChannel = make(chan KVRequest)
+type KVHandler struct {
+	storeChannel chan KVRequest
+}
 
-func setKey(c *gin.Context) {
+func (h *KVHandler) setKey(c *gin.Context) {
 	key := c.Param("key")
 	log.Printf(`set operation in progress for key: %s`, key)
 
-	var body struct {
+	var requestBody struct {
 		Value string `json:"value"`
 	}
-	if err := json.NewDecoder(c.Request.Body).Decode(&body); err != nil {
-		http.Error(c.Writer, "invalid body", http.StatusBadRequest)
+	if err := json.NewDecoder(c.Request.Body).Decode(&requestBody); err != nil || requestBody.Value == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid body"})
 		return
 	}
 
 	setResponseChannel := make(chan KVResponse)
-	updatesToStoreChannel <- KVRequest{Method: "set", Key: key, Value: body.Value, Resp: setResponseChannel} // pushes requests to channel being consumed by startKVStore function
+	h.storeChannel <- KVRequest{Method: "set", Key: key, Value: requestBody.Value, Resp: setResponseChannel} // pushes requests to channel being consumed by startKVStore function
 	resp := <-setResponseChannel
 
 	c.JSON(http.StatusCreated, gin.H{"key": key, "value": resp.Value})
 }
 
-func getKey(c *gin.Context) {
+func (h *KVHandler) getKey(c *gin.Context) {
 	key := c.Param("key")
 	log.Printf(`get operation in progress for key: %s`, key)
 
 	getResponseChannel := make(chan KVResponse)
-	updatesToStoreChannel <- KVRequest{Method: "get", Key: key, Resp: getResponseChannel} // pushes requests to channel being consumed by startKVStore function
+	h.storeChannel <- KVRequest{Method: "get", Key: key, Resp: getResponseChannel} // pushes requests to channel being consumed by startKVStore function
 	resp := <-getResponseChannel
 
 	if !resp.Success {
 		errMessage := fmt.Sprintf(`key "%s" not found`, key)
-		http.Error(c.Writer, errMessage, http.StatusNotFound)
+		c.JSON(http.StatusNotFound, gin.H{"error": errMessage})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"key": key, "value": resp.Value})
 }
 
-func deleteKey(c *gin.Context) {
+func (h *KVHandler) deleteKey(c *gin.Context) {
 	key := c.Param("key")
 	log.Printf(`delete operation in progress for key: %s`, key)
 
 	deletionResponseChannel := make(chan KVResponse)
-	updatesToStoreChannel <- KVRequest{Method: "delete", Key: key, Resp: deletionResponseChannel} // pushes requests to channel being consumed by startKVStore function
+	h.storeChannel <- KVRequest{Method: "delete", Key: key, Resp: deletionResponseChannel} // pushes requests to channel being consumed by startKVStore function
 	resp := <-deletionResponseChannel
 
 	if resp.Success == false {
-		http.Error(c.Writer, fmt.Sprintf(`deletion unsuccessful for key: %s`, key), http.StatusNotFound)
+		errMessage := fmt.Sprintf(`deletion unsuccessful for key: %s`, key)
+		c.JSON(http.StatusNotFound, gin.H{"error": errMessage})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"deletion successful for key": key})
 }
 
-func setupRouter() *gin.Engine {
+func setupRouter(storeChannel chan KVRequest) *gin.Engine {
 	r := gin.Default()
-	r.PATCH("/kv/:key", setKey) // In this simple environment, setting a key is always a PUT because there's only one value that is always overwrititen; there's nothing to partially update. BUT, PUT makes me nervous and in a real production environment with larger objects, PATCH would be safer.
-	r.GET("/kv/:key", getKey)
-	r.DELETE("/kv/:key", deleteKey)
-	r.POST("/kv/", func(c *gin.Context) { // skipping POST since they key is always known.
+	handler := &KVHandler{storeChannel: storeChannel}
+
+	r.PATCH("/kv/:key", handler.setKey) // In this simple environment, setting a key is always a PUT because there's only one value that is always overwritten; there's nothing to partially update. BUT, PUT makes me nervous and in a real production environment with larger objects, PATCH would be safer.
+	r.GET("/kv/:key", handler.getKey)
+	r.DELETE("/kv/:key", handler.deleteKey)
+	r.POST("/kv/", func(c *gin.Context) { // skipping POST since the key is always known.
 		c.JSON(http.StatusMethodNotAllowed, gin.H{"error": "Method Not Allowed"})
 	})
 	return r
 }
 
+var updatesToStoreChannel = make(chan KVRequest)
+
 func main() {
 
 	go startKVStore(updatesToStoreChannel) // using a goroutine to avoid race behavior writing/deleting the same key at the same time.
 
-	r := setupRouter()
+	r := setupRouter(updatesToStoreChannel)
 
 	log.Println("KV Service listening on :8080")
 	log.Fatal(http.ListenAndServe(":8080", r))
