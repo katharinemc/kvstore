@@ -98,7 +98,7 @@ func testDeletionHandler(w http.ResponseWriter, req *http.Request) {
 
 }
 
-func testOverWrite(w http.ResponseWriter, req *http.Request) {
+func testOverWriteHandler(w http.ResponseWriter, req *http.Request) {
 
 	if _, err := callKV("PATCH", "/kv/robin", `{"value": "dick grayson"}`); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -141,7 +141,7 @@ func main() {
 	r := mux.NewRouter()
 	r.HandleFunc("/kv/{key}", handler).Methods("PATCH", "DELETE", "GET")
 	r.HandleFunc("/test_deletion", testDeletionHandler).Methods("GET")
-	r.HandleFunc("/test_overwrite", testDeletionHandler).Methods("GET")
+	r.HandleFunc("/test_overwrite", testOverWriteHandler).Methods("GET")
 
 	log.Println("Test Client listening on :8081")
 	log.Fatal(http.ListenAndServe(":8081", r))

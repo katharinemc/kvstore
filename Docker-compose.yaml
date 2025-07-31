@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  kv_service:
+    build:
+      context: ./kv_service
+    ports:
+      - "8080:8080"
+
+  test_client:
+    build:
+      context: ./test_client
+    ports:
+      - "8081:8081"
+    depends_on:
+      - kv_service
